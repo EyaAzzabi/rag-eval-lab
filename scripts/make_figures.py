@@ -29,7 +29,7 @@ def figure_quality_by_strategy(runs: list[dict]) -> None:
     chunkings = sorted({r["chunking"] for r in runs})
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
 
-    for ax, metric in zip(axes, ["ndcg@10", "recall@10"]):
+    for ax, metric in zip(axes, ["ndcg@10", "recall@10"], strict=True):
         width = 0.26
         for i, retriever in enumerate(RETRIEVERS):
             values = [

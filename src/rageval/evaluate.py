@@ -13,8 +13,6 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import numpy as np
-
 from .chunking import STRATEGIES
 from .data import load_corpus, load_qrels, load_queries
 from .embedding import Embedder
@@ -66,15 +64,21 @@ def run_sweep(dataset: str = "scifact", split: str = "test", top_k: int = 10) ->
         hybrid = HybridRetriever(bm25, dense)
 
         configs = {
-            "bm25": (lambda q, v: bm25.search(q.text, top_k), bm25_build),
-            "dense": (lambda q, v: dense.search_vector(v, top_k), dense_build),
-            "hybrid": (lambda q, v: hybrid.search(q.text, v, top_k), dense_build + bm25_build),
+            # Retrievers are bound as default arguments rather than captured from
+            # the enclosing loop: a late-binding closure here would silently
+            # evaluate every chunking strategy against the last one built.
+            "bm25": (lambda q, v, r=bm25: r.search(q.text, top_k), bm25_build),
+            "dense": (lambda q, v, r=dense: r.search_vector(v, top_k), dense_build),
+            "hybrid": (
+                lambda q, v, r=hybrid: r.search(q.text, v, top_k),
+                dense_build + bm25_build,
+            ),
         }
 
         for retriever_name, (search_fn, build_seconds) in configs.items():
             run: dict[str, list[str]] = {}
             latencies: list[float] = []
-            for query, vector in zip(queries, query_vectors):
+            for query, vector in zip(queries, query_vectors, strict=True):
                 start = time.perf_counter()
                 hits = search_fn(query, vector)
                 latencies.append((time.perf_counter() - start) * 1000)

@@ -87,7 +87,7 @@ class DenseRetriever:
         # asking for exactly top_k chunks can yield far fewer than top_k documents.
         fetch = min(top_k * 8, self.index.ntotal)
         sims, idxs = self.index.search(query_vector.reshape(1, -1), fetch)
-        scores = {int(i): float(s) for i, s in zip(idxs[0], sims[0]) if i >= 0}
+        scores = {int(i): float(s) for i, s in zip(idxs[0], sims[0], strict=True) if i >= 0}
         return _pool_to_documents(scores, self.chunks, top_k)
 
 

@@ -34,6 +34,12 @@ All nine configurations, 300 judged queries, measured on 8 CPU cores.
 Reproduce with `python -m rageval.evaluate` (about 40 minutes cold on CPU, seconds
 once embeddings are cached).
 
+**Quality figures are deterministic** — every one of them reproduced bit-identically
+on a second independent run. **Latency figures are not**, swinging by up to 2.5x
+depending on what else the machine is doing. See
+[`results/latency_variance.md`](results/latency_variance.md) for both runs side by
+side. Treat the latency column as directional, not as a measurement.
+
 ---
 
 ## What the numbers say
@@ -80,25 +86,34 @@ dense metrics alone will quietly degrade your lexical half.
 
 `hybrid/window120` tops the table at nDCG@10 0.6978. `hybrid/whole` scores 0.6927.
 
-The gap is **0.0051, or 0.7% relative**. What it costs:
+The gap is **0.0051, or 0.7% relative** — and across 300 queries that is inside the
+noise. It is not a difference I would defend.
 
-- **2.3× the median latency** — 81.0 ms against 35.4 ms
-- **3.0× the tail latency** — 216 ms against 72 ms
-- **2.5× the index** — 13,030 chunks against 5,183
+What it costs is not inside the noise:
 
-For a user-facing system that is a bad trade, and p95 is where it really shows: 216
-ms of retrieval before a single token is generated. I would ship `hybrid/whole` and
-keep the 0.7%.
+- **2.5x the index** — 13,030 chunks against 5,183. This one is deterministic: 2.5x
+  the vectors to store, 2.5x the memory resident, and 2.5x the embedding compute on
+  every rebuild.
+- **Consistently higher query latency.** Across two runs, `hybrid/whole` measured
+  35-54 ms at p50 and `hybrid/window120` measured 69-81 ms. The ordering held both
+  times; the ratio ranged from 1.3x to 2.3x, which is why the argument above rests
+  on index size instead.
 
-This is the reason the table reports latency next to quality. A leaderboard column
-alone would have chosen the worse system.
+So: 2.5x the storage and compute, reliably slower queries, for 0.7% nDCG that
+300 queries cannot separate from noise. I would ship `hybrid/whole`.
 
-### 4. Dense retrieval is ~40× faster here, but read the caveat
+This is the reason the table reports cost next to quality. A leaderboard column
+alone would have chosen the worse system, and chosen it confidently.
 
-Dense search runs at 0.9 ms p50 against 50.3 ms for BM25. **That comparison is not
-language-fair**: FAISS is optimised C++, while my BM25 is pure Python looping over
-posting lists. A production BM25 in Lucene or Tantivy would be within a small factor
-of FAISS, not 40× behind.
+### 4. Dense retrieval is ~55x faster here, but read the caveat
+
+Dense search runs at 0.9 ms p50 against 50.3 ms for BM25, and that ratio was the
+most stable measurement in the whole harness — dense moved only from 0.85 to 0.91 ms
+between runs, because it is a single FAISS call rather than a Python loop.
+
+**The comparison is not language-fair.** FAISS is optimised C++; my BM25 is pure
+Python walking posting lists. A production BM25 in Lucene or Tantivy would be within
+a small factor of FAISS, not 55x behind.
 
 What the number *does* honestly show is the cost of the naive implementation most
 people reach for first — and it explains why `hybrid` is slower than `dense`: fusion
@@ -193,8 +208,11 @@ not a benchmark.
   "was the evidence retrieved?", not "was the answer right?".
 - **One embedding model.** The chunking conclusions may be specific to MiniLM's
   256-token limit; a long-context embedder would likely narrow the gap.
-- **Latency is single-process, unbatched, on one machine.** Directionally useful,
-  not a capacity plan. No concurrency, no cold-start, no network.
+- **Latency is single-process, unbatched, on one machine, and noisy.** Re-running
+  the sweep moved individual p50 figures by up to 2.5x while every quality metric
+  stayed bit-identical. The ordering is trustworthy; the magnitudes are not. Real
+  benchmarking would pin cores and report a distribution over many repetitions.
+  No concurrency, no cold-start, no network.
 - **Exact search.** `IndexFlatIP` scans everything. At 5,183 documents that is
   correct; at ten million it is not, and HNSW or IVF would introduce a recall/speed
   trade-off this harness does not yet measure.
