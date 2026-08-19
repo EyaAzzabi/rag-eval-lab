@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      RAG_DATASET: ${RAG_DATASET:-scifact}
+      RAG_CHUNKING: ${RAG_CHUNKING:-whole}
+      RAG_RETRIEVER: ${RAG_RETRIEVER:-hybrid}
+    volumes:
+      # Bind-mounted so the embedding cache survives container restarts; a cold
+      # start otherwise re-embeds the whole corpus.
+      - ./data:/app/data
+    # The index builds at startup, so give it room before the healthcheck judges.
+    stop_grace_period: 30s
