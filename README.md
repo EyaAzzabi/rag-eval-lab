@@ -192,6 +192,24 @@ curl -X POST localhost:8000/search \
 No API keys anywhere. Retrieval evaluation runs entirely on local models, so
 anyone can reproduce the table above rather than taking it on trust.
 
+### One bug worth recording
+
+The first smoke test of the API returned a correct answer in **42,700 ms**.
+
+The cause: chunk embeddings are served from the disk cache at startup, so the
+sentence-transformer model was never actually loaded during the lifespan — and the
+first user to send a query paid the model load *inside their request*. Every
+subsequent query was fast, so an uptime check and a warm load test would both have
+passed while the first real user waited forty seconds.
+
+The fix is one line — encode a throwaway string during startup. First query now
+takes **43 ms**, roughly a thousandfold difference for the person unlucky enough to
+arrive first.
+
+It is in the README rather than quietly patched out because caches that hide
+initialisation cost until the first production request are a general class of bug,
+not a detail of this repo.
+
 ---
 
 ## Limitations

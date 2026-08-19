@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
     embedder = Embedder()
     vectors = embedder.encode([c.text for c in chunks], cache_key=f"{DATASET}-{CHUNKING}")
 
+    # Warm the embedding model before serving. Chunk vectors usually come from the
+    # cache, which means the model is never actually loaded during startup -- and
+    # the first user to send a query then pays a ~40s model load inside their
+    # request. Measured, not hypothetical: it is what the first smoke test did.
+    embedder.encode(["warmup"])
+
     bm25 = BM25Retriever(chunks)
     dense = DenseRetriever(chunks, vectors)
     state.update(
