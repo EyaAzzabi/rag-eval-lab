@@ -1,0 +1,17 @@
+# Core retrieval and evaluation
+numpy>=1.26
+sentence-transformers>=2.7
+faiss-cpu>=1.8
+torch>=2.2
+
+# Serving
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+# Figures
+matplotlib>=3.8
+
+# Development
+pytest>=8.0
+ruff>=0.4
