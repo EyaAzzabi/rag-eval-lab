@@ -1,17 +1,31 @@
 # rag-eval-lab
 
-A retrieval-augmented search system, and the harness that measures how well it
-actually retrieves.
+[![CI](https://github.com/EyaAzzabi/rag-eval-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/EyaAzzabi/rag-eval-lab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![tests](https://img.shields.io/badge/tests-25%20passing-brightgreen.svg)](tests/)
+[![no API key](https://img.shields.io/badge/API%20key-not%20required-success.svg)](#running-it)
 
-Most RAG demos show you an answer. This one shows you **recall@10, nDCG@10 and p95
-latency for nine configurations**, so the choice of retriever and chunking strategy
-is an argument from evidence rather than a default nobody revisited.
+**Everyone building with LLMs has a RAG demo. Very few can tell you their retrieval recall.**
 
-Evaluated on [SciFact](https://github.com/allenai/scifact): 5,183 scientific
-abstracts, 300 test claims, with relevance judgments made by human annotators —
-not by me, which is the point.
+This is the harness that answers that question — nine retriever x chunking configurations
+scored on recall@k, MRR and nDCG, with the cost of each reported next to its quality.
 
-![Retrieval quality against serving cost](figures/quality_vs_latency.png)
+Evaluated on [SciFact](https://github.com/allenai/scifact): 5,183 scientific abstracts and
+300 test claims, with relevance judgments made by human annotators — **not by me**, which
+is the point of using it.
+
+![Finer chunks help dense retrieval and hurt BM25 — the two curves cross](figures/chunking_divergence.png)
+
+### Three findings
+
+| | |
+|---|---|
+| **Hybrid beats both of its parts, every time** | Rank fusion scored higher than BM25 or dense alone in all three chunking strategies — nDCG@10 0.693 against 0.662 and 0.648. They fail on *different* queries, which is why fusing works. |
+| **Chunking helps dense retrieval and hurts BM25** | Order the strategies by granularity and both curves go monotonic in opposite directions, crossing between them. "What is the best chunk size?" has no answer independent of what you retrieve with. |
+| **The best-scoring config is not the one to ship** | The winner led by 0.7% nDCG — inside the noise at 300 queries — and cost 2.5x the index, memory and embedding compute to get it. |
+
+Everything below is reproducible from this repository with no API key and no account.
 
 ---
 
@@ -62,13 +76,19 @@ avoids having to reconcile BM25's unbounded scores with cosine similarities in
 
 This was the result I did not expect, and it is the most interesting thing here.
 
-| | whole | sentence3 | change |
-|---|---:|---:|---|
-| dense nDCG@10 | 0.6484 | 0.6717 | **+3.6%** |
-| bm25 nDCG@10 | 0.6622 | 0.6285 | **−5.1%** |
+Sort the three strategies by how finely they cut the corpus — not alphabetically, which
+hides it — and both curves become **monotonic, in opposite directions**:
 
-The two retrievers respond to chunking in opposite directions, so "what is the best
-chunk size?" has no answer independent of what you retrieve with.
+| nDCG@10 | whole<br>5,183 chunks | window120<br>13,030 chunks | sentence3<br>16,626 chunks | |
+|---|---:|---:|---:|---|
+| **dense** | 0.6484 | 0.6597 | 0.6717 | rises, **+3.6%** |
+| **bm25** | 0.6622 | 0.6496 | 0.6285 | falls, **−5.1%** |
+
+They also **cross**. On whole documents BM25 leads dense by 0.014; by `window120` dense
+is ahead by 0.010. Which retriever is "better" on this corpus depends entirely on a
+chunking decision most teams make once and never revisit.
+
+So "what is the best chunk size?" has no answer independent of what you retrieve with.
 
 The mechanism is that BM25 is built on **document-level statistics**. Splitting one
 abstract into four chunks fragments its term frequencies — a term appearing three
@@ -104,6 +124,11 @@ So: 2.5x the storage and compute, reliably slower queries, for 0.7% nDCG that
 
 This is the reason the table reports cost next to quality. A leaderboard column
 alone would have chosen the worse system, and chosen it confidently.
+
+![Retrieval quality against what it costs to serve](figures/quality_vs_latency.png)
+
+*Up and to the left is better. The hybrid configurations cluster at the top; dense sits
+alone on the far left, cheap but never the most accurate.*
 
 ### 4. Dense retrieval is ~55x faster here, but read the caveat
 

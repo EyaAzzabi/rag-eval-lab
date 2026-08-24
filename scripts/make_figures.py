@@ -131,13 +131,70 @@ def figure_recall_by_k(runs: list[dict]) -> None:
     plt.close(fig)
 
 
+def figure_chunking_divergence(runs: list[dict]) -> None:
+    """The headline finding: finer chunks help dense retrieval and hurt BM25.
+
+    Strategies are ordered by chunk count (coarse to fine) rather than by name.
+    That ordering is what makes the effect legible -- both curves become
+    monotonic, and they cross.
+    """
+    order = [c for _, c in sorted({(r["n_chunks"], r["chunking"]) for r in runs})]
+    xs = range(len(order))
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for retriever in RETRIEVERS:
+        ys = [
+            next(
+                r["metrics"]["ndcg@10"]
+                for r in runs
+                if r["retriever"] == retriever and r["chunking"] == c
+            )
+            for c in order
+        ]
+        style = "--" if retriever == "hybrid" else "-"
+        ax.plot(
+            xs, ys, marker="o", markersize=8, linewidth=2.5, linestyle=style,
+            color=COLOURS[retriever], label=retriever, zorder=3,
+        )
+        for x, y in zip(xs, ys, strict=True):
+            ax.annotate(
+                f"{y:.3f}", (x, y), textcoords="offset points",
+                xytext=(0, 11), ha="center", fontsize=8, color=COLOURS[retriever],
+            )
+
+    # Headroom so the value labels above each marker are not clipped.
+    ax.margins(y=0.16)
+
+    # Mark where lexical and dense retrieval swap places.
+    ax.axvspan(0, 1, color="#999", alpha=0.08, zorder=0)
+    ax.text(
+        0.5, ax.get_ylim()[0] + 0.002, "they cross here",
+        ha="center", fontsize=8.5, color="#555", style="italic",
+    )
+
+    counts = {c: next(r["n_chunks"] for r in runs if r["chunking"] == c) for c in order}
+    ax.set_xticks(list(xs))
+    nl = chr(10)
+    ax.set_xticklabels([f"{c}{nl}{counts[c]:,} chunks" for c in order])
+    ax.set_xlabel("chunking strategy, coarse to fine")
+    ax.set_ylabel("nDCG@10")
+    ax.set_title("Finer chunks help dense retrieval and hurt BM25")
+    ax.legend(frameon=False, loc="center right")
+    ax.grid(alpha=0.3)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(FIGURES / "chunking_divergence.png", dpi=160)
+    plt.close(fig)
+
+
 def main() -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     runs = load()
+    figure_chunking_divergence(runs)
     figure_quality_by_strategy(runs)
     figure_quality_vs_latency(runs)
     figure_recall_by_k(runs)
-    print(f"Wrote 3 figures to {FIGURES}")
+    print(f"Wrote 4 figures to {FIGURES}")
 
 
 if __name__ == "__main__":
