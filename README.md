@@ -265,6 +265,25 @@ not a benchmark.
 - **300 queries is small.** Differences under roughly one point of nDCG are inside
   the noise, which is exactly why I would not pay 2.3× latency for 0.7%.
 
+## Why this exists
+
+I built a production RAG agent for
+**[Scoutable](https://github.com/EyaAzzabi/scoutable)**, a football scouting platform:
+a grounded assistant over 9,977 players that routes questions across seven retrieval
+tools, cites every player by id, and fences third-party note text against prompt
+injection. Its source belongs to the lab that owns the platform, so it cannot be
+published.
+
+Building it left me with a question I could not answer from inside it: *how good is the
+retrieval, actually?* Citation grounding proves the model did not invent a player. It
+says nothing about whether the right player was ever retrieved — and if retrieval misses,
+a perfectly grounded answer is still the wrong answer.
+
+This repository is that question asked properly, on public data, with code anyone can
+read. The recall@3 result is the one that transfers: at 0.70, **three questions in ten
+cannot be answered correctly no matter how good the generator is.** No amount of prompt
+engineering recovers a document that was never retrieved.
+
 ## Licence
 
 MIT
